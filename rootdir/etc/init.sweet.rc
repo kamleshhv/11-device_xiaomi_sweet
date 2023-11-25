@@ -1,0 +1,99 @@
+# Copyright (c) 2016, 2018, The Linux Foundation. All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#     * Redistributions of source code must retain the above copyright
+#       notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above copyright
+#       notice, this list of conditions and the following disclaimer in the
+#       documentation and/or other materials provided with the distribution.
+#     * Neither the name of The Linux Foundation nor
+#       the names of its contributors may be used to endorse or promote
+#       products derived from this software without specific prior written
+#       permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NON-INFRINGEMENT ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+# EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+# OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+# OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+# ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+
+# this will make sure you have /data ready and then you try to create the dir.
+on init
+    chown system camera /dev/drv8846_dev
+    chown system camera /dev/akm09970
+    chmod 0660 /dev/drv8846_dev
+    chmod 0660 /dev/akm09970
+
+on boot
+    write /dev/cpuset/top-app/cpus 0-7
+    write /dev/cpuset/top-app/boost/cpus 4-7
+    write /dev/cpuset/foreground/cpus 0-6
+    write /dev/cpuset/foreground/boost/cpus 0-6
+    write /dev/cpuset/background/cpus 0-1
+    write /dev/cpuset/system-background/cpus 0-3
+
+    #Set the default voltage to 5v
+    setprop persist.vendor.cp.taper_term_mv 5000
+
+    setprop persist.vendor.qg_cold_temp -150
+    setprop persist.vendor.qg_coff_gain 1
+    setprop persist.vendor.qg_cld_coff_gain 1.5
+
+# service for fwcheck
+service fwcheck /system/vendor/bin/sh /vendor/bin/fwcheck.sh
+    class main
+    user root
+    group root
+    oneshot
+
+on late-fs
+    start surfaceflinger
+    start bootanim
+    start vendor.hwcomposer-2-4
+    start vendor.qti.hardware.display.allocator
+
+on post-fs-data
+    # EAS
+    write /proc/sys/kernel/sched_upmigrate 95
+    write /proc/sys/kernel/sched_downmigrate 85
+
+    setprop vendor.powerhal.init 1
+
+on init && property:ro.boot.hwc=GLOBAL
+    start nqnfc_2_0_hal_service
+
+on property:ro.boot.hwc=INDIA
+    mount none /dev/null /vendor/etc/permissions/android.hardware.nfc.hcef.xml bind
+    mount none /dev/null /vendor/etc/permissions/android.hardware.nfc.hce.xml bind
+    mount none /dev/null /vendor/etc/permissions/android.hardware.nfc.uicc.xml bind
+    mount none /dev/null /vendor/etc/permissions/android.hardware.nfc.xml bind
+    mount none /dev/null /vendor/etc/permissions/com.android.nfc_extras.xml bind
+    mount none /dev/null /vendor/etc/permissions/com.nxp.mifare.xml bind
+
+service nqnfc_2_0_hal_service /vendor/bin/hw/vendor.nxp.hardware.nfc@2.0-service
+    class hal
+    user nfc
+    group nfc
+    disabled
+
+on boot
+    chown system system /sys/devices/platform/soc/ae00000.qcom,mdss_mdp/drm/card0/card0-DSI-1/disp_param
+    chmod 0660 /sys/devices/platform/soc/ae00000.qcom,mdss_mdp/drm/card0/card0-DSI-1/disp_param
+
+on property:vendor.usb.mimode=*
+    setprop persist.vendor.usb.config ${vendor.usb.mimode}
+
+service vendor.bluetooth-1-0-qti /vendor/bin/hw/android.hardware.bluetooth@1.0-service-qti
+    class hal
+    user bluetooth
+    group bluetooth system oem_2901
+    capabilities BLOCK_SUSPEND NET_ADMIN
+    override
